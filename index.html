@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAPS PUTRI</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e74c3c;
+            --success: #27ae60;
+            --bg: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            background: white;
+            width: 100%;
+            max-width: 420px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        @media (min-height: 600px) {
+            .container {
+                height: auto;
+                border-radius: 24px;
+                padding-bottom: 20px;
+            }
+        }
+
+        .header {
+            padding: 30px 20px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: var(--primary);
+            margin: 0;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .camera-container {
+            position: relative;
+            background: #000;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        #reader {
+            width: 100%;
+        }
+
+        /* Menghilangkan UI bawaan library agar bersih */
+        #reader__dashboard, #reader__status_span, #reader button {
+            display: none !important;
+        }
+
+        .status-box {
+            padding: 25px;
+            text-align: center;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #status-text {
+            font-size: 16px;
+            color: #7f8c8d;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .status-active {
+            color: var(--success) !important;
+            font-weight: bold;
+            transform: scale(1.05);
+        }
+
+        .status-error {
+            color: var(--accent) !important;
+            font-weight: bold;
+        }
+
+        .scan-line {
+            height: 2px;
+            background: var(--accent);
+            width: 100%;
+            position: absolute;
+            top: 50%;
+            animation: moveScan 2s infinite linear;
+            box-shadow: 0 0 8px var(--accent);
+            z-index: 10;
+        }
+
+        @keyframes moveScan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>DAPS PUTRI</h1>
+    </div>
+
+    <div class="camera-container">
+        <div id="reader"></div>
+        <div class="scan-line"></div>
+    </div>
+
+    <div class="status-box">
+        <div id="status-text">Siap Memindai Barcode...</div>
+    </div>
+</div>
+
+<script>
+    // URL Web App Google Apps Script Anda
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwYP8tnQ2D_gsiXbdxuom9teULLNJsDFUkp71VyMQVEjkM2aNrige1Z45DWXwo_dPvf/exec";
+    
+    const statusText = document.getElementById('status-text');
+    let isScanning = true;
+
+    function onScanSuccess(decodedText) {
+        if (!isScanning) return;
+        
+        isScanning = false; // Kunci scanner agar tidak mengirim ganda
+        statusText.innerText = "Memproses: " + decodedText + "...";
+        statusText.style.color = "#2980b9";
+
+        // Mengirim data ke Google Sheets via Apps Script (Metode POST)
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            mode: "no-cors", // Mengizinkan request ke domain berbeda
+            cache: "no-cache",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ nama: decodedText }),
+        })
+        .then(() => {
+            // Karena menggunakan no-cors, kita tidak bisa membaca response JSON, 
+            // namun jika fetch berhasil, kita asumsikan data terkirim.
+            statusText.innerText = "Berhasil Dicatat: " + decodedText;
+            statusText.classList.add('status-active');
+
+            // Reset scanner setelah 1.5 detik
+            setTimeout(() => {
+                statusText.innerText = "Siap Memindai Barcode...";
+                statusText.classList.remove('status-active');
+                statusText.style.color = "#7f8c8d";
+                isScanning = true;
+            }, 1500);
+        })
+        .catch(err => {
+            statusText.innerText = "Gagal Mengirim Data!";
+            statusText.classList.add('status-error');
+            console.error(err);
+            setTimeout(() => { isScanning = true; }, 3000);
+        });
+    }
+
+    // Inisialisasi Scanner
+    const html5QrCode = new Html5Qrcode("reader");
+    const config = { 
+        fps: 20, 
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0
+    };
+
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess
+    ).catch(err => {
+        statusText.innerText = "Kamera tidak terdeteksi atau izin ditolak.";
+        statusText.classList.add('status-error');
+    });
+</script>
+
+</body>
+</html>
